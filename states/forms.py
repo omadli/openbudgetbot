@@ -22,4 +22,6 @@ class AdminState(StatesGroup):
     set_ob_url = State()
     set_admin_user = State()
     reply_appeal = State()
+    add_payment_channel = State()
+    add_isbot_channel = State()
     

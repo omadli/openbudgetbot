@@ -624,6 +624,90 @@ async def clear_mandatory_channels(call: CallbackQuery):
     await call.message.delete() # type: ignore
 
 
+# ==========================================
+# 🔐 TO'LOVLAR KANALINI BOSHQARISH
+# ==========================================
+@admin_router.callback_query(F.data == "manage_payment_channel")
+async def manage_payment_channel_menu(call: CallbackQuery, state: FSMContext):
+    channel_record = await Setting.get_or_none(key="tolovlar_kanali")
+    current_channel = channel_record.value if channel_record else "Belgilanmagan (Yo'q)"
+
+    text = (
+        f"<b>To'lovlar kanali holati:</b>\n\n"
+        f"<b>Hozirgi kanal:</b> {current_channel}\n\n"
+        f"<i>Yangi to'lovlar kanalini ulash uchun kanal ID si (masalan: -100123...) yoki username (masalan: @kanal) sini yuboring:</i>"
+    )
+
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗑 Kanalni olib tashlash", callback_data="clear_payment_channel")]
+    ])
+
+    await call.message.edit_text(text, reply_markup=markup) # type: ignore
+    await state.set_state(AdminState.add_payment_channel)
+
+@admin_router.message(AdminState.add_payment_channel)
+async def save_payment_channel(message: Message, state: FSMContext):
+    new_channel = message.text.strip() # type: ignore
+    
+    # Bazaga saqlash yoki yangilash
+    await Setting.update_or_create(key="tolovlar_kanali", defaults={"value": new_channel})
+    
+    await message.answer(
+        f"<b>✅ To'lovlar kanali {new_channel} qilib o'rnatildi!</b>\n\n<i>Endi pul yechish arizalari shu kanalga boradi.</i>", 
+        reply_markup=admin_menu_keyboard()
+    )
+    await state.clear()
+
+@admin_router.callback_query(F.data == "clear_payment_channel")
+async def clear_payment_channel_action(call: CallbackQuery, state: FSMContext):
+    await Setting.filter(key="tolovlar_kanali").delete()
+    
+    await call.answer("🗑 To'lovlar kanali bazadan o'chirildi!", show_alert=True)
+    await call.message.delete() # type: ignore
+    await state.clear()
+    
+# ==========================================
+# 📸 ISBOT KANALINI BOSHQARISH
+# ==========================================
+@admin_router.callback_query(F.data == "manage_isbot_channel")
+async def manage_isbot_channel_menu(call: CallbackQuery, state: FSMContext):
+    channel_record = await Setting.get_or_none(key="isbot_kanali")
+    current_channel = channel_record.value if channel_record else "Belgilanmagan (Yo'q)"
+
+    text = (
+        f"<b>📸 Isbot kanali holati:</b>\n\n"
+        f"<b>Hozirgi kanal:</b> {current_channel}\n\n"
+        f"<i>Yangi isbot kanalini ulash uchun kanal username (masalan: @kanal) sini yuboring:</i>"
+    )
+
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗑 Kanalni olib tashlash", callback_data="clear_isbot_channel")]
+    ])
+
+    await call.message.edit_text(text, reply_markup=markup) # type: ignore
+    await state.set_state(AdminState.add_isbot_channel)
+
+@admin_router.message(AdminState.add_isbot_channel)
+async def save_isbot_channel(message: Message, state: FSMContext):
+    new_channel = message.text.strip() # type: ignore
+    
+    # Bazaga saqlash yoki yangilash
+    await Setting.update_or_create(key="isbot_kanali", defaults={"value": new_channel})
+    
+    await message.answer(
+        f"<b>✅ Isbot kanali {new_channel} qilib o'rnatildi!</b>\n\n<i>Endi tasdiqlangan skrinshotlar shu kanalga yuborilishi mumkin.</i>", 
+        reply_markup=admin_menu_keyboard()
+    )
+    await state.clear()
+
+@admin_router.callback_query(F.data == "clear_isbot_channel")
+async def clear_isbot_channel_action(call: CallbackQuery, state: FSMContext):
+    await Setting.filter(key="isbot_kanali").delete()
+    
+    await call.answer("🗑 Isbot kanali bazadan o'chirildi!", show_alert=True)
+    await call.message.delete() # type: ignore
+    await state.clear()
+
 @admin_router.message(F.text == "👤 Adminlar")
 async def admins_menu(message: Message):
     admin_list = "\n".join([f"• <a href='tg://user?id={admin_id}'>{admin_id}</a>" for admin_id in ADMIN_IDS])

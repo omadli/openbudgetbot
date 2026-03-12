@@ -52,6 +52,7 @@ def channels_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔐 Majburiy obuna kanallari", callback_data="manage_mandatory")],
         [InlineKeyboardButton(text="🔐 To'lovlar kanali", callback_data="manage_payment_channel")],
+        [InlineKeyboardButton(text="📸 Isbot kanali", callback_data="manage_isbot_channel")],
     ])
 
 def channels_del_kb():

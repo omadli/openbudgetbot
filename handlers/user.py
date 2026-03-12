@@ -358,7 +358,7 @@ async def bot_instructions(message: Message):
 # --- 📃 TO'LOVLAR ---
 @user_router.message(F.text == "📃 To'lovlar")
 async def payment_channel_info(message: Message):
-    channel = await Setting.get_or_none(key="tolovlar_kanali")
+    channel = await Setting.get_or_none(key="isbot_kanali")
     channel_link = channel.value if channel else "Hali sozlanmagan"
     await message.answer(f"<b>📮 To'lovlar Kanali:</b> {channel_link}")
 
