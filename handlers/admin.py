@@ -361,7 +361,7 @@ async def show_statistics(message: Message):
     user_count = await User.all().count()
     approved_votes = await Vote.filter(status="approved").count()
     rejected_votes = await Vote.filter(status="rejected").count()
-    waiting_votes = await Vote.filter(status="waiting").count()
+    pending_votes = await Vote.filter(status="pending").count()
     
     # Jami to'langan summani hisoblash
     paid_sum_result = await Withdrawal.filter(status="paid").annotate(total=Sum("amount")).first()
@@ -373,7 +373,7 @@ async def show_statistics(message: Message):
         f"👥 Foydalanuvchilar: {user_count} ta\n"
         f"🔖 Tasdiqlangan ovozlar: {approved_votes} ta\n"
         f"❌ Bekor qilingan ovozlar: {rejected_votes} ta\n"
-        f"⏳ Kutilayotgan ovozlar: {waiting_votes} ta\n"
+        f"⏳ Kutilayotgan ovozlar: {pending_votes} ta\n"
         f"💵 Jami to'landi: {total_paid or 0} so'm\n"
     )
     await m.edit_text(text, reply_markup=rating_keyb())
