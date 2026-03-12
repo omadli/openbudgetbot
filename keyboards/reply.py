@@ -20,6 +20,7 @@ cancel_kb = ReplyKeyboardMarkup(
 def admin_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text="🔄 Saytdan ovozlarni yig'ish")],
             [KeyboardButton(text="*⃣ Birlamchi sozlamalar")],
             [KeyboardButton(text="🎁 Kunlik bonus sozlamalari")],
             [KeyboardButton(text="👤 Adminlar"), KeyboardButton(text="💵 Yechish tizimi")],

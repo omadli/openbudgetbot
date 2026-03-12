@@ -1,14 +1,19 @@
+import io
+import json
 import time
+import openpyxl
+from datetime import datetime
 from aiogram import Router, F, Bot
 from tortoise.expressions import Q
 from tortoise.functions import Sum, Count
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
 from states.forms import AdminState
-from settings import VOTE_PRICE, ADMIN_IDS
-from db.models import User, Vote, Withdrawal, Setting, Channel, PaymentSystem
+from settings import OPENBUDGET_URL, VOTE_PRICE, ADMIN_IDS
 from keyboards.reply import admin_menu_keyboard, cancel_kb, get_main_menu
+from db.models import User, Vote, Withdrawal, Setting, Channel, PaymentSystem, OBVote
+from utils.openbudget import fetch_captcha, fetch_token, parse_and_save_votes
 from keyboards.inline import admin_broadcast_menu, primary_settings_kb, bonus_settings_kb, channels_kb, channels_del_kb, payment_systems_kb, rating_keyb
 
 admin_router = Router()
@@ -393,7 +398,7 @@ async def show_ratings(call: CallbackQuery):
         subtext = f"ID: <code>{u.telegram_id}</code>" if not u.username else "@{u.username}"
         text += f"{i}. <a href='tg://user?id={u.telegram_id}'>{u.full_name}</a> [{subtext}] - {u.vote_count} ta ovoz\n" # type: ignore
         
-    await call.message.answer(text, parse_mode="HTML") # type: ignore
+    await call.message.answer(text) # type: ignore
     await call.answer()
     
 @admin_router.message(F.text == "*⃣ Birlamchi sozlamalar")
@@ -813,4 +818,159 @@ async def send_appeal_reply(message: Message, state: FSMContext, bot: Bot):
     except Exception as e:
         await message.answer(f"<b>❌ Xatolik! Foydalanuvchi botni bloklagan bo'lishi mumkin.</b>", reply_markup=admin_menu_keyboard())
     
+    await state.clear()
+
+# ==========================================
+# 🔄 OPENBUDGET SAYTIDAN OVOZLARNI OLISH
+# ==========================================
+@admin_router.message(F.text == "🔄 Saytdan ovozlarni yig'ish")
+async def start_fetching_votes(message: Message, state: FSMContext):
+    # Loyiha URL in bazadan tortamiz
+    ob_setting = await Setting.get_or_none(key="openbudget_url")
+    url = OPENBUDGET_URL
+    if  ob_setting:
+        url = ob_setting.value
+    initiative_id = url.split("?")[0].split("/")[-1]
+    
+    await message.answer("⏳ <b>Saytga ulanilmoqda, captcha olinmoqda...</b>")
+    
+    # ID ni berib captcha chaqiramiz
+    captcha_key, image_bytes, cookies, headers = await fetch_captcha(initiative_id)
+    
+    if not captcha_key or not image_bytes:
+        return await message.answer("⚠️ <b>Saytga ulanishda xatolik!</b>\nOpenBudget hozircha bloklagan bo'lishi mumkin. Keyinroq urining.")
+        
+    photo = BufferedInputFile(image_bytes, filename="captcha.jpg")
+    
+    try:
+        # Avval rasm sifatida yuborishga harakat qilamiz
+        await message.answer_photo(
+            photo=photo,
+            caption="<b>🖼 Captcha rasmidagi sonni kiriting:</b>",
+            reply_markup=cancel_kb
+        )
+    except Exception as e:
+        # Agar Telegram "IMAGE_PROCESS_FAILED" bersa, fayl sifatida yuboramiz
+        await message.answer_document(
+            document=photo,
+            caption="<b>🖼 Captcha rasmidagi sonni kiriting:</b>",
+            reply_markup=cancel_kb
+        )
+    
+    # Xotiraga keyingi qadamlar uchun saqlaymiz
+    await state.update_data(
+        initiative_id=initiative_id,
+        captcha_key=captcha_key, 
+        cookies=cookies,
+        ob_headers=headers
+    )
+    await state.set_state(AdminState.waiting_for_ob_captcha)
+
+@admin_router.message(AdminState.waiting_for_ob_captcha)
+async def process_ob_captcha(message: Message, state: FSMContext, bot: Bot):
+    # Agar orqaga bossa jarayonni to'xtatamiz
+    if message.text == "◀️ Orqaga":
+        await state.clear()
+        return await message.answer("<b>🗄 Boshqaruv paneliga qaytdingiz.</b>", reply_markup=admin_menu_keyboard())
+
+    captcha_result = message.text.strip()
+    
+    data = await state.get_data()
+    initiative_id = data.get("initiative_id")
+    captcha_key = data.get("captcha_key")
+    cookies = data.get("cookies")
+    headers = data.get("ob_headers")
+    
+    wait_msg = await message.answer("⏳ <b>Token olinmoqda...</b>")
+    
+    token = await fetch_token(initiative_id, captcha_key, captcha_result, cookies, headers)
+    
+    if not token:
+        await state.clear()
+        return await wait_msg.edit_text("❌ <b>Captcha xato kiritildi yoki sayt blokladi!</b>\nQaytadan urining.")
+        
+    await wait_msg.edit_text("🔄 <b>Ovozlar tekshirilmoqda. Bu biroz vaqt olishi mumkin...</b>")
+    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+    
+    try:
+        new_votes = await parse_and_save_votes(token, cookies, headers, initiative_id)
+        await wait_msg.edit_text(
+            f"✅ <b>Tekshiruv yakunlandi!</b>\n\n"
+            f"📥 Yangi saqlangan ovozlar: <b>{new_votes} ta</b>\n"
+            f"<i>Barcha eski ovozlar o'tkazib yuborildi.</i>"
+        )
+        await bot.send_chat_action(chat_id=message.chat.id, action="upload_document")
+        
+        # 1. Barcha ovozlarni bazadan tortamiz (aynan shu loyiha uchun, vaqt bo'yicha kamayish tartibida)
+        all_votes = await OBVote.filter(initiative_id=initiative_id).order_by("-vote_date").all()
+        total_votes = len(all_votes)
+        
+        if total_votes == 0:
+            await wait_msg.edit_text("🤷‍♂️ Hali hech qanday ovoz topilmadi.")
+            return await state.clear()
+
+        # 2. Excel fayl yaratish (xotirada)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Ovozlar"
+        
+        # Excel sarlavhalari
+        ws.append(["T/r", "Telefon raqam", "Ovoz berilgan vaqt",])
+        
+        # Ustunlar kengligini chiroyli qilish
+        ws.column_dimensions['B'].width = 18
+        ws.column_dimensions['C'].width = 20
+        # ws.column_dimensions['D'].width = 20
+        
+        json_data = []
+        
+        for i, vote in enumerate(all_votes, start=1):
+            v_date_str = vote.vote_date.strftime("%Y-%m-%d %H:%M")
+            # c_date_str = vote.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Excelga yozish
+            ws.append([i, vote.phone_number, v_date_str])
+            
+            # JSON uchun yig'ish
+            json_data.append({
+                "No": i,
+                "phone_number": vote.phone_number,
+                "vote_date": v_date_str
+            })
+            
+        # Excelni baytlarga aylantirib, yuborishga tayyorlash
+        current_time_file = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        excel_filename = f"Ovozlar_{current_time_file}.xlsx"
+        excel_file = BufferedInputFile(excel_buffer.read(), filename=excel_filename)
+        
+        # 3. JSON fayl yaratish (xotirada)
+        json_bytes = json.dumps(json_data, indent=4).encode("utf-8")
+        json_filename = f"Ovozlar_{current_time_file}.json"
+        json_file = BufferedInputFile(json_bytes, filename=json_filename)
+        
+        # 4. Izoh matnini (Caption) tayyorlash
+        last_vote_time = all_votes[0].vote_date.strftime("%Y-%m-%d %H:%M")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        caption = (
+            # f"✅ <b>Tekshiruv yakunlandi!</b>\n\n"
+            f"📥 Yangi saqlangan ovozlar: <b>{new_votes} ta</b>\n"
+            f"📊 <b>Jami ovozlar soni:</b> {total_votes} ta\n"
+            f"🕒 <b>Oxirgi yangilangan vaqt:</b> {current_time}\n"
+            f"📩 <b>Eng oxirgi ovoz vaqti:</b> {last_vote_time}"
+        )
+        
+        
+        # Asosiy ma'lumotlar bilan Excel faylni jo'natamiz
+        await message.answer_document(document=excel_file, caption=caption)
+        # Ketidan JSON faylni jo'natamiz
+        await message.answer_document(document=json_file, reply_markup=admin_menu_keyboard())
+        
+    except Exception as e:
+        await wait_msg.edit_text(f"⚠️ <b>Ovozlarni yig'ishda uzilish bo'ldi:</b>\n{str(e)}")
+        await wait_msg.answer("<b>🗄 Boshqaruv paneli!</b>", reply_markup=admin_menu_keyboard())
+        
     await state.clear()

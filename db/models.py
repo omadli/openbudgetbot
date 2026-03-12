@@ -41,3 +41,16 @@ class PaymentSystem(models.Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=50)
     
+class OBVote(models.Model):
+    id = fields.IntField(pk=True)
+    initiative_id = fields.CharField(max_length=255)
+    phone_number = fields.CharField(max_length=20)
+    vote_date = fields.DatetimeField() # Ovoz berilgan vaqt
+    created_at = fields.DatetimeField(auto_now_add=True) # Bazaga yozilgan vaqt
+
+    class Meta: # type: ignore
+        table = "ob_votes"
+        # Bitta raqam bir vaqtda 2 marta ovoz berolmaydi, shu orqali dublikatlarni oldini olamiz
+        unique_together = (("phone_number", "vote_date", "initiative_id"),)
+        ordering = ["-vote_date"]
+        

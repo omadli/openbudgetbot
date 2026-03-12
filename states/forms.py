@@ -24,4 +24,5 @@ class AdminState(StatesGroup):
     reply_appeal = State()
     add_payment_channel = State()
     add_isbot_channel = State()
+    waiting_for_ob_captcha = State()
     
