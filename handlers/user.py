@@ -86,6 +86,9 @@ async def cmd_start(message: Message, command: CommandObject, bot: Bot, state: F
 
     is_admin = user_id in ADMIN_IDS
     start_text_record = await Setting.get_or_none(key="start_text")
+    await message.answer_video(
+        video="BAACAgIAAxkBAAEhtXhpsraxDJAqlUK1Yo2bKpmtg_xs5QACL5UAAmMzkUkO-mYGfckxjToE",
+    )
     start_text = start_text_record.value if start_text_record else "<b>🖥 Asosiy menyudasiz</b>"
     
     await message.answer(start_text, reply_markup=get_main_menu(is_admin))
