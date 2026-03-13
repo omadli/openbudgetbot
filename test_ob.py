@@ -8,6 +8,7 @@ import string
 # Sizning tashlagan logingizdagi Initiative ID
 INITIATIVE_ID = "9ee10df4-78e5-4441-b4c8-a98f5e2449a6"
 PROXY = "http://213.230.110.191:3128"
+PROXY = "http://213.230.110.191:3128"
 
 def generate_access_captcha():
     """JavaScript dagi kabi tasodifiy 17 xonali matn yasab, Base64 ga o'giradi"""
@@ -41,6 +42,18 @@ async def main():
     timeout = aiohttp.ClientTimeout(total=30)
 
     async with aiohttp.ClientSession(headers=HEADERS, timeout=timeout) as session:
+    
+    timeout = aiohttp.ClientTimeout(total=30)
+
+    async with aiohttp.ClientSession(headers=HEADERS, timeout=timeout) as session:
+        
+        print(f"1. Asosiy sahifaga ulanish (Proxy orqali: {PROXY})...")
+        try:
+            await session.get(f"https://openbudget.uz/boards/initiatives/initiative/53/{INITIATIVE_ID}", proxy=PROXY)
+            await asyncio.sleep(1) # Sayt bloklamasligi uchun kichik pauza
+        except Exception as e:
+            print(f"❌ Proxy orqali ulanishda xato (Sahifa): {e}")
+            return
         
         print(f"1. Asosiy sahifaga ulanish (Proxy orqali: {PROXY})...")
         try:
@@ -62,14 +75,14 @@ async def main():
                 captcha_key = data.get("captchaKey")
                 img_b64 = data.get("image", "")
 
-                # Base64 dan rasmni ajratib olib faylga saqlash
-                if "," in img_b64:
-                    img_b64 = img_b64.split(",")[1]
-                
-                with open("captcha.jpg", "wb") as f:
-                    f.write(base64.b64decode(img_b64))
-                
-                print("✅ 'captcha.jpg' fayli saqlandi!")
+                    # Base64 dan rasmni ajratib olib faylga saqlash
+                    if "," in img_b64:
+                        img_b64 = img_b64.split(",")[1]
+                    
+                    with open("captcha.jpg", "wb") as f:
+                        f.write(base64.b64decode(img_b64))
+                    
+                    print("✅ 'captcha.jpg' fayli saqlandi!")
         except Exception as e:
             print(f"❌ Proxy orqali ulanishda xato (Captcha): {e}")
             return
@@ -98,6 +111,19 @@ async def main():
         except Exception as e:
             print(f"❌ Proxy orqali ulanishda xato (Token): {e}")
             return
+        try:
+            async with session.post("https://openbudget.uz/api/v2/info/get-initiative-token", json=payload, proxy=PROXY) as response:
+                if response.status != 200:
+                    print(f"❌ XATOLIK: Token olishda xato. Status: {response.status}")
+                    print("Sabab:", await response.text())
+                    return
+                    
+                token_data = await response.json()
+                token = token_data.get("token")
+                print(f"✅ Token muvaffaqiyatli olindi: {token}")
+        except Exception as e:
+            print(f"❌ Proxy orqali ulanishda xato (Token): {e}")
+            return
 
         print("4. Ovozlar yig'ilmoqda (bu biroz vaqt olishi mumkin)...")
         all_votes = []
@@ -106,6 +132,29 @@ async def main():
         while True:
             print(f"   📥 Sahifa: {page} yuklanmoqda...")
             url = f"https://openbudget.uz/api/v2/info/votes/{token}?page={page}"
+            try:
+                async with session.get(url, proxy=PROXY) as response:
+                    if response.status != 200:
+                        print(f"⚠️ {page}-sahifani olishda xatolik yuz berdi. To'xtatildi.")
+                        break
+                        
+                    v_data = await response.json()
+                    content = v_data.get("content", [])
+                    
+                    if not content:
+                        break
+                        
+                    all_votes.extend(content)
+                    
+                    # Agar "last": true bo'lsa yoki ovozlar tugagan bo'lsa
+                    if v_data.get("last") == True:
+                        break
+                        
+                page += 1
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                print(f"⚠️ Proxy orqali xatolik ({page}-sahifa): {e}")
+                break
             try:
                 async with session.get(url, proxy=PROXY) as response:
                     if response.status != 200:
