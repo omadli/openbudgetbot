@@ -873,7 +873,7 @@ async def process_ob_captcha(message: Message, state: FSMContext, bot: Bot):
         await state.clear()
         return await message.answer("<b>🗄 Boshqaruv paneliga qaytdingiz.</b>", reply_markup=admin_menu_keyboard())
 
-    captcha_result = message.text.strip()
+    captcha_result = message.text.strip() # type: ignore
     
     data = await state.get_data()
     initiative_id = data.get("initiative_id")
@@ -883,7 +883,7 @@ async def process_ob_captcha(message: Message, state: FSMContext, bot: Bot):
     
     wait_msg = await message.answer("⏳ <b>Token olinmoqda...</b>")
     
-    token = await fetch_token(initiative_id, captcha_key, captcha_result, cookies, headers)
+    token = await fetch_token(initiative_id, captcha_key, captcha_result, cookies, headers) # type: ignore
     
     if not token:
         await state.clear()
@@ -893,7 +893,7 @@ async def process_ob_captcha(message: Message, state: FSMContext, bot: Bot):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
     try:
-        new_votes = await parse_and_save_votes(token, cookies, headers, initiative_id)
+        new_votes = await parse_and_save_votes(token, cookies, headers, initiative_id) # type: ignore
         await wait_msg.edit_text(
             f"✅ <b>Tekshiruv yakunlandi!</b>\n\n"
             f"📥 Yangi saqlangan ovozlar: <b>{new_votes} ta</b>\n"
@@ -912,14 +912,14 @@ async def process_ob_captcha(message: Message, state: FSMContext, bot: Bot):
         # 2. Excel fayl yaratish (xotirada)
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Ovozlar"
+        ws.title = "Ovozlar" # type: ignore
         
         # Excel sarlavhalari
-        ws.append(["T/r", "Telefon raqam", "Ovoz berilgan vaqt",])
+        ws.append(["T/r", "Telefon raqam", "Ovoz berilgan vaqt",]) # type: ignore
         
         # Ustunlar kengligini chiroyli qilish
-        ws.column_dimensions['B'].width = 18
-        ws.column_dimensions['C'].width = 20
+        ws.column_dimensions['B'].width = 18 # type: ignore
+        ws.column_dimensions['C'].width = 20 # type: ignore
         # ws.column_dimensions['D'].width = 20
         
         json_data = []
@@ -929,7 +929,7 @@ async def process_ob_captcha(message: Message, state: FSMContext, bot: Bot):
             # c_date_str = vote.created_at.strftime("%Y-%m-%d %H:%M:%S")
             
             # Excelga yozish
-            ws.append([i, vote.phone_number, v_date_str])
+            ws.append([i, vote.phone_number, v_date_str]) # type: ignore
             
             # JSON uchun yig'ish
             json_data.append({
