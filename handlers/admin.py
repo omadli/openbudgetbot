@@ -395,7 +395,7 @@ async def show_ratings(call: CallbackQuery):
         
     text = "<b>🏆 Ovoz berganlar reytingi (Top 10):</b>\n\n"
     for i, u in enumerate(top_users, 1):
-        subtext = f"ID: <code>{u.telegram_id}</code>" if not u.username else "@{u.username}"
+        subtext = f"ID: <code>{u.telegram_id}</code>" if not u.username else f"@{u.username}"
         text += f"{i}. <a href='tg://user?id={u.telegram_id}'>{u.full_name}</a> [{subtext}] - {u.vote_count} ta ovoz\n" # type: ignore
         
     await call.message.answer(text) # type: ignore
