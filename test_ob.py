@@ -7,6 +7,7 @@ import string
 
 # Sizning tashlagan logingizdagi Initiative ID
 INITIATIVE_ID = "9ee10df4-78e5-4441-b4c8-a98f5e2449a6"
+PROXY = "http://213.230.110.191:3128"
 
 def generate_access_captcha():
     """JavaScript dagi kabi tasodifiy 17 xonali matn yasab, Base64 ga o'giradi"""
@@ -36,32 +37,42 @@ async def main():
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
     }
+    
+    timeout = aiohttp.ClientTimeout(total=30)
 
-    async with aiohttp.ClientSession(headers=HEADERS) as session:
+    async with aiohttp.ClientSession(headers=HEADERS, timeout=timeout) as session:
         
-        print("1. Asosiy sahifaga ulanish (Cookie va sessiya ochish)...")
-        await session.get(f"https://openbudget.uz/boards/initiatives/initiative/53/{INITIATIVE_ID}")
-        await asyncio.sleep(1) # Sayt bloklamasligi uchun kichik pauza
-
+        print(f"1. Asosiy sahifaga ulanish (Proxy orqali: {PROXY})...")
+        try:
+            await session.get(f"https://openbudget.uz/boards/initiatives/initiative/53/{INITIATIVE_ID}", proxy=PROXY)
+            await asyncio.sleep(1) # Sayt bloklamasligi uchun kichik pauza
+        except Exception as e:
+            print(f"❌ Proxy orqali ulanishda xato (Sahifa): {e}")
+            return
+        
         print("2. Captcha olinmoqda...")
-        async with session.get("https://openbudget.uz/api/v2/vote/captcha-2") as response:
-            if response.status != 200:
-                print(f"❌ XATOLIK: Captcha olishda xato. Status: {response.status}")
-                print(await response.text())
-                return
-            
-            data = await response.json()
-            captcha_key = data.get("captchaKey")
-            img_b64 = data.get("image", "")
+        try:
+            async with session.get("https://openbudget.uz/api/v2/vote/captcha-2", proxy=PROXY) as response:
+                if response.status != 200:
+                    print(f"❌ XATOLIK: Captcha olishda xato. Status: {response.status}")
+                    print(await response.text())
+                    return
+                
+                data = await response.json()
+                captcha_key = data.get("captchaKey")
+                img_b64 = data.get("image", "")
 
-            # Base64 dan rasmni ajratib olib faylga saqlash
-            if "," in img_b64:
-                img_b64 = img_b64.split(",")[1]
-            
-            with open("captcha.jpg", "wb") as f:
-                f.write(base64.b64decode(img_b64))
-            
-            print("✅ 'captcha.jpg' fayli saqlandi!")
+                # Base64 dan rasmni ajratib olib faylga saqlash
+                if "," in img_b64:
+                    img_b64 = img_b64.split(",")[1]
+                
+                with open("captcha.jpg", "wb") as f:
+                    f.write(base64.b64decode(img_b64))
+                
+                print("✅ 'captcha.jpg' fayli saqlandi!")
+        except Exception as e:
+            print(f"❌ Proxy orqali ulanishda xato (Captcha): {e}")
+            return
 
         # Terminaldan javobni kutish
         print("\nDIQQAT: Loyiha papkasidagi 'captcha.jpg' faylini oching!")
@@ -74,15 +85,19 @@ async def main():
             "captchaResult": captcha_result
         }
         
-        async with session.post("https://openbudget.uz/api/v2/info/get-initiative-token", json=payload) as response:
-            if response.status != 200:
-                print(f"❌ XATOLIK: Token olishda xato. Status: {response.status}")
-                print("Sabab:", await response.text())
-                return
-                
-            token_data = await response.json()
-            token = token_data.get("token")
-            print(f"✅ Token muvaffaqiyatli olindi: {token}")
+        try:
+            async with session.post("https://openbudget.uz/api/v2/info/get-initiative-token", json=payload, proxy=PROXY) as response:
+                if response.status != 200:
+                    print(f"❌ XATOLIK: Token olishda xato. Status: {response.status}")
+                    print("Sabab:", await response.text())
+                    return
+                    
+                token_data = await response.json()
+                token = token_data.get("token")
+                print(f"✅ Token muvaffaqiyatli olindi: {token}")
+        except Exception as e:
+            print(f"❌ Proxy orqali ulanishda xato (Token): {e}")
+            return
 
         print("4. Ovozlar yig'ilmoqda (bu biroz vaqt olishi mumkin)...")
         all_votes = []
@@ -91,26 +106,29 @@ async def main():
         while True:
             print(f"   📥 Sahifa: {page} yuklanmoqda...")
             url = f"https://openbudget.uz/api/v2/info/votes/{token}?page={page}"
-            
-            async with session.get(url) as response:
-                if response.status != 200:
-                    print(f"⚠️ {page}-sahifani olishda xatolik yuz berdi. To'xtatildi.")
-                    break
+            try:
+                async with session.get(url, proxy=PROXY) as response:
+                    if response.status != 200:
+                        print(f"⚠️ {page}-sahifani olishda xatolik yuz berdi. To'xtatildi.")
+                        break
+                        
+                    v_data = await response.json()
+                    content = v_data.get("content", [])
                     
-                v_data = await response.json()
-                content = v_data.get("content", [])
-                
-                if not content:
-                    break
+                    if not content:
+                        break
+                        
+                    all_votes.extend(content)
                     
-                all_votes.extend(content)
-                
-                # Agar "last": true bo'lsa yoki ovozlar tugagan bo'lsa
-                if v_data.get("last") == True:
-                    break
-                    
-            page += 1
-            await asyncio.sleep(0.5)
+                    # Agar "last": true bo'lsa yoki ovozlar tugagan bo'lsa
+                    if v_data.get("last") == True:
+                        break
+                        
+                page += 1
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                print(f"⚠️ Proxy orqali xatolik ({page}-sahifa): {e}")
+                break
 
         # Olingan barcha ovozlarni JSON faylga chiroyli qilib saqlash
         with open("votes.json", "w", encoding="utf-8") as f:
