@@ -318,7 +318,9 @@ async def show_payment_systems(call: CallbackQuery):
         return await call.answer("⚠️ Pul yechish tizimlari qo'shilmagan!", show_alert=True)
         
     kb = [[InlineKeyboardButton(text=sys.name, callback_data=f"pay_{sys.name}")] for sys in systems]
-    await call.message.edit_text("<b>💳 Pul yechish tizimlaridan birini tanlang:</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)) # type: ignore
+    await call.answer()
+    await call.message.delete() # type: ignore
+    await call.message.answer("<b>💳 Pul yechish tizimlaridan birini tanlang:</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)) # type: ignore
 
 # --- 🖇️ TAKLIF QILISH ---
 @user_router.message(F.text == "🖇️ Taklif qilish")
