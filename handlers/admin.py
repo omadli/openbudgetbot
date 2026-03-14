@@ -387,7 +387,7 @@ async def show_statistics(message: Message):
 async def show_referral_rating(call: CallbackQuery):
     wait_msg = await call.message.answer("⏳ <b>Reyting hisoblanmoqda...</b>") # type: ignore
     
-    top_referrers = await User.filter(referrer_id__not_isnull=True)\
+    top_referrers = await User.filter(referred_by__not_isnull=True)\
         .annotate(ref_count=Count("id"))\
         .group_by("referrer_id")\
         .order_by("-ref_count")\
