@@ -389,10 +389,10 @@ async def show_referral_rating(call: CallbackQuery):
     
     top_referrers = await User.filter(referred_by__not_isnull=True)\
         .annotate(ref_count=Count("id"))\
-        .group_by("referrer_id")\
+        .group_by("referred_by")\
         .order_by("-ref_count")\
         .limit(10)\
-        .values("referrer_id", "ref_count")
+        .values("referred_by", "ref_count")
 
     text = "🏆 <b>TOP 10 REFERALLAR REYTINGI:</b>\n\n"
     
@@ -400,9 +400,9 @@ async def show_referral_rating(call: CallbackQuery):
         text += "<i>🤷‍♂️ Hali hech kim referal orqali odam chaqirmagan.</i>"
     else:
         for i, ref in enumerate(top_referrers, start=1):
-            referrer = await User.get_or_none(telegram_id=ref["referrer_id"])
+            referrer = await User.get_or_none(telegram_id=ref["referred_by"])
             
-            name = referrer.full_name if referrer else f"ID: {ref['referrer_id']}"
+            name = referrer.full_name if referrer else f"ID: {ref['referred_by']}"
             
             name = name.replace("<", "").replace(">", "")
             
