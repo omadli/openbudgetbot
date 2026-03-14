@@ -387,25 +387,18 @@ async def show_statistics(message: Message):
 async def show_referral_rating(call: CallbackQuery):
     wait_msg = await call.message.answer("⏳ <b>Reyting hisoblanmoqda...</b>") # type: ignore
     
-    top_referrers = await User.filter(referred_by__not_isnull=True)\
-        .annotate(ref_count=Count("id"))\
-        .group_by("referred_by")\
-        .order_by("-ref_count")\
-        .limit(10)\
-        .values("referred_by", "ref_count")
+    top_referrers = await User.filter(referral_count__gt=0).order_by("-referral_count").limit(10)
 
     text = "🏆 <b>TOP 10 REFERALLAR REYTINGI:</b>\n\n"
     
     if not top_referrers:
         text += "<i>🤷‍♂️ Hali hech kim referal orqali odam chaqirmagan.</i>"
     else:
-        for i, ref in enumerate(top_referrers, start=1):
-            referrer = await User.get_or_none(telegram_id=ref["referred_by"])
+        for i, user in enumerate(top_referrers, start=1):
+            # Ismdagi HTML belgilarni xavfsizlik uchun tozalaymiz
+            name = user.full_name.replace("<", "").replace(">", "") if user.full_name else f"ID: {user.telegram_id}"
             
-            name = referrer.full_name if referrer else f"ID: {ref['referred_by']}"
-            
-            name = name.replace("<", "").replace(">", "")
-            
+            # Chiroyli medallar
             if i == 1:
                 medal = "🥇"
             elif i == 2:
@@ -415,7 +408,8 @@ async def show_referral_rating(call: CallbackQuery):
             else:
                 medal = f"<b>{i}.</b>"
                 
-            text += f"{medal} <b>{name}</b> — {ref['ref_count']} ta taklif\n"
+            # user obyektining o'zidan barcha ma'lumotlarni to'g'ridan-to'g'ri olamiz
+            text += f"{medal} <b>{name}</b> — {user.referral_count} ta taklif\n"
 
     await wait_msg.edit_text(text)
 
