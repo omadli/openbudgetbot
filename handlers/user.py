@@ -180,6 +180,7 @@ async def process_screenshot(message: Message, state: FSMContext, bot: Bot):
     caption = "\n".join([f"📄 <b>Yangi ovoz:</b>\n",
             f"<b>👤 Foydalanuvchi:</b> {message.from_user.mention_html()}", # type: ignore
             f"<b>🔎 ID raqami:</b> <code>{message.from_user.id}</code>", # type: ignore
+            f"<b>🔗 Username: </b>@{message.from_user.username}" if message.from_user.username else "",# type: ignore
             f"<b>📞 Telefon raqami:</b> {phone}"]) # type: ignore
     await bot.send_photo(
         chat_id=VOTES_GROUP,
@@ -241,9 +242,12 @@ async def enter_amount(message: Message, state: FSMContext, bot: Bot):
     valyuta_record = await Setting.get_or_none(key="valyuta")
     pul = valyuta_record.value if valyuta_record else "so'm"
     
+    username__or_id_text = f"• <b>Username:</b>  @{user.username}\n" if user.username else f"• <b>ID raqami:</b> <code>{user.telegram_id}</code>\n"
+
     # Adminga/Kanalga ketadigan xabar matni
     admin_text = (
         f"💵 <a href='tg://user?id={user.telegram_id}'>{user.full_name}</a> <b>pul yechib olmoqchi!</b>\n\n"
+        f"{username__or_id_text}"
         f"• <b>To'lov turi:</b> {data['system_name']}\n"
         f"• <b>Pul miqdori:</b> {amount} {pul}\n"
         f"• <b>Hamyon raqami:</b> <code>{data['wallet']}</code>"
@@ -386,9 +390,11 @@ async def process_appeal(message: Message, state: FSMContext, bot: Bot):
         is_admin = message.from_user.id in ADMIN_IDS # type: ignore
         return await message.answer("<b>🖥 Asosiy menyudasiz</b>", reply_markup=get_main_menu(is_admin))
     
+    username_or_id = f"<b>👤 Username:</b> @{message.from_user.username}" if message.from_user.username else f"<b>👤 ID:</b> <code>{message.from_user.id}</code>" # type: ignore
     text_to_admin = (
         f"<b>📨 Yangi murojaat keldi:</b> <a href='tg://user?id={message.from_user.id}'>{message.from_user.full_name}</a>\n\n" # type: ignore
-        f"<b>📑 Murojaat matni:</b> {message.text}"
+        f"{username_or_id}\n\n"
+        f"<b>📑 Murojaat matni:</b> <i>{message.text}</i>"
     )
     
     markup = InlineKeyboardMarkup(inline_keyboard=[

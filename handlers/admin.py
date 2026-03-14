@@ -383,6 +383,42 @@ async def show_statistics(message: Message):
     )
     await m.edit_text(text, reply_markup=rating_keyb())
 
+@admin_router.callback_query(F.data == "ratings_ref")
+async def show_referral_rating(call: CallbackQuery):
+    wait_msg = await call.message.answer("⏳ <b>Reyting hisoblanmoqda...</b>") # type: ignore
+    
+    top_referrers = await User.filter(referrer_id__not_isnull=True)\
+        .annotate(ref_count=Count("id"))\
+        .group_by("referrer_id")\
+        .order_by("-ref_count")\
+        .limit(10)\
+        .values("referrer_id", "ref_count")
+
+    text = "🏆 <b>TOP 10 REFERALLAR REYTINGI:</b>\n\n"
+    
+    if not top_referrers:
+        text += "<i>🤷‍♂️ Hali hech kim referal orqali odam chaqirmagan.</i>"
+    else:
+        for i, ref in enumerate(top_referrers, start=1):
+            referrer = await User.get_or_none(telegram_id=ref["referrer_id"])
+            
+            name = referrer.full_name if referrer else f"ID: {ref['referrer_id']}"
+            
+            name = name.replace("<", "").replace(">", "")
+            
+            if i == 1:
+                medal = "🥇"
+            elif i == 2:
+                medal = "🥈"
+            elif i == 3:
+                medal = "🥉"
+            else:
+                medal = f"<b>{i}.</b>"
+                
+            text += f"{medal} <b>{name}</b> — {ref['ref_count']} ta taklif\n"
+
+    await wait_msg.edit_text(text)
+
 @admin_router.callback_query(F.data == "ratings")
 async def show_ratings(call: CallbackQuery):
     # Faqat statusi "approved" bo'lgan ovozlar sonini hisoblab, kamayish tartibida taxlaymiz

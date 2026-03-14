@@ -96,7 +96,8 @@ def return_games_kb():
 
 def rating_keyb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏆 Reyting", callback_data="ratings")]
+        [InlineKeyboardButton(text="🏆 Reyting", callback_data="ratings")],
+        [InlineKeyboardButton(text="🏆 Referallar reytingi", callback_data="ratings_ref")]
     ])
 
 def sub_keyboard(unsubbed_channels: list) -> InlineKeyboardMarkup:
