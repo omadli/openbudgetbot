@@ -347,7 +347,13 @@ async def referral_link(message: Message, bot: Bot):
         f"<b>▪️👤 1 ta taklif uchun {ref_price} {pul} beriladi▪️</b>\n\n"
         f"<b>🔔 Takliflaringiz :</b> {user.referral_count} ta"
     )
-    await message.answer_photo(photo="https://t.me/Fast_Sim_News/26", caption=text)
+    await message.answer_photo(
+        photo="https://t.me/Fast_Sim_News/26", 
+        caption=text, 
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="↗️ Ulashish", url=f"https://t.me/share/url?url={link}")]
+        ])
+    )
 
 # --- 📑 YO'RIQNOMA ---
 @user_router.message(F.text == "📑 Yo'riqnoma")

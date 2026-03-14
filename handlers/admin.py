@@ -385,6 +385,7 @@ async def show_statistics(message: Message):
 
 @admin_router.callback_query(F.data == "ratings_ref")
 async def show_referral_rating(call: CallbackQuery):
+    await call.answer(text="Hisoblanmoqda...")
     wait_msg = await call.message.answer("⏳ <b>Reyting hisoblanmoqda...</b>") # type: ignore
     
     top_referrers = await User.filter(referral_count__gt=0).order_by("-referral_count").limit(10)
@@ -397,6 +398,7 @@ async def show_referral_rating(call: CallbackQuery):
         for i, user in enumerate(top_referrers, start=1):
             # Ismdagi HTML belgilarni xavfsizlik uchun tozalaymiz
             name = user.full_name.replace("<", "").replace(">", "") if user.full_name else f"ID: {user.telegram_id}"
+            mention = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.telegram_id}"
             
             # Chiroyli medallar
             if i == 1:
@@ -409,9 +411,9 @@ async def show_referral_rating(call: CallbackQuery):
                 medal = f"<b>{i}.</b>"
                 
             # user obyektining o'zidan barcha ma'lumotlarni to'g'ridan-to'g'ri olamiz
-            text += f"{medal} <b>{name}</b> — {user.referral_count} ta taklif\n"
+            text += f"{medal} <a href='{mention}'>{name}</a> — {user.referral_count} ta taklif\n"
 
-    await wait_msg.edit_text(text)
+    await wait_msg.edit_text(text, disable_web_page_preview=True)
 
 @admin_router.callback_query(F.data == "ratings")
 async def show_ratings(call: CallbackQuery):
